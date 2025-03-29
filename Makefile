@@ -2,7 +2,7 @@
 .PHONY: build start clean test
 
 BUILD_DIR=bin/
-BINARY_NAME=SERVICE_NAME
+BINARY_NAME=energy
 
 lint:
 	@echo "Lint check..."
@@ -25,6 +25,3 @@ start: build
 clean:
 	@echo "Cleaning all targets for ${BINARY_NAME}"
 	rm -rf $(BUILD_DIR)
-
-test: lint
-	go test ./src -v -count=1 -timeout 0

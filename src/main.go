@@ -5,142 +5,208 @@ import (
 	"os"
 	"time"
 
-	pb_outputs "github.com/VU-ASE/rovercom/packages/go/outputs"
 	roverlib "github.com/VU-ASE/roverlib-go/src"
+	"periph.io/x/conn/v3/i2c"
+	"periph.io/x/conn/v3/i2c/i2creg"
+	"periph.io/x/host/v3"
 
 	"github.com/rs/zerolog/log"
 )
 
-// The main user space program
-// this program has all you need from roverlib: service identity, reading, writing and configuration
-func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration) error {
-	//
-	// Get configuration values
-	//
-	if configuration == nil {
-		return fmt.Errorf("Configuration cannot be accessed")
-	}
+const (
+	// Device address
+	ina226Address = 0x40
 
-	//
-	// Access the service identity, who am I?
-	//
-	log.Info().Msgf("Hello world, a new Go service '%s' was born at version %s", *service.Name, *service.Version)
+	// Register addresses
+	configReg      = 0x00
+	shuntVoltReg   = 0x01
+	busVoltReg     = 0x02
+	powerReg       = 0x03
+	currentReg     = 0x04
+	calibrationReg = 0x05
 
-	//
-	// Access the service configuration, to use runtime parameters
-	//
-	tunableSpeed, err := configuration.GetFloatSafe("speed")
-	if err != nil {
-		return fmt.Errorf("Failed to get configuration: %v", err)
-	}
-	log.Info().Msgf("Fetched runtime configuration example tunable number: %f", tunableSpeed)
+	// Configuration values
+	configValue = 0x4127 // Default configuration
 
-	//
-	// Reading from an input, to get data from other services (see service.yaml to understand the input name)
-	//
-	readStream := service.GetReadStream("imaging", "path")
-	if readStream == nil {
-		return fmt.Errorf("Failed to get read stream")
-	}
+	// Conversion factors
+	busVoltageConversion = 1.25 / 1000.0 // 1.25 mV/bit
+	currentLSB           = 0.001         // 1 mA/bit (adjust based on your calibration)
+	powerLSB             = 25.0 * 0.001  // 25 * currentLSB (25 mW/bit)
+)
 
-	//
-	// Writing to an output that other services can read (see service.yaml to understand the output name)
-	//
-	writeStream := service.GetWriteStream("decision")
-	if writeStream == nil {
-		return fmt.Errorf("Failed to create write stream 'decision'")
-	}
-
-	for {
-		//
-		// Reading one message from the stream
-		//
-		data, err := readStream.Read()
-		if data == nil || err != nil {
-			return fmt.Errorf("Failed to read from 'imaging' service")
-		}
-
-		// When did the imaging service create this message?
-		createdAt := data.Timestamp
-		log.Info().Msgf("Recieved message with timestamp: %d", createdAt)
-
-		// Get the imaging data
-		imagingData := data.GetCameraOutput()
-		if imagingData == nil {
-			return fmt.Errorf("Message does not contain camera output. What did imaging do??")
-		}
-		log.Info().Msgf("Imaging service captured a %d by %d image", imagingData.Trajectory.Width, imagingData.Trajectory.Height)
-
-		// Print the X and Y coordinates of the middle point of the track that Imaging has detected
-		if len(imagingData.Trajectory.Points) > 0 {
-			log.Info().Msgf("The X: %d and Y: %d values of the middle point of the track", imagingData.Trajectory.Points[0].X, imagingData.Trajectory.Points[0].Y)
-		} else {
-			log.Info().Msgf("imaging could didn't detect track edges. Is the Rover on the track?")
-		}
-
-		// This value holds the steering position that we want to pass to the servo (-1 = left, 0 = center, 1 = right)
-		steerPosition := float32(-0.5)
-
-		// Initialize the message that we want to send to the actuator
-		actuatorMsg := pb_outputs.SensorOutput{
-			Timestamp: uint64(time.Now().UnixMilli()), // milliseconds since epoch
-			Status:    0,                              // all is well
-			SensorId:  1,                              
-			SensorOutput: &pb_outputs.SensorOutput_ControllerOutput{
-				ControllerOutput: &pb_outputs.ControllerOutput{
-					SteeringAngle: steerPosition,
-					LeftThrottle:  float32(tunableSpeed),
-					RightThrottle: float32(tunableSpeed),
-					FanSpeed:      0,
-					FrontLights:   false,
-				},
-			},
-		}
-
-		// Send the message to the actuator
-		err = writeStream.Write(&actuatorMsg)
-		if err != nil {
-			log.Warn().Err(err).Msg("Could not write to actuator")
-		}
-
-		//
-		// Now do something else fun, see if our "tunable_speed" is updated
-		//
-		curr := tunableSpeed
-
-		log.Info().Msg("Checking for tunable number update")
-
-		// We are not using the safe version here, because using locks is boring
-		// (this is perfectly fine if you are constantly polling the value)
-		// nb: this is not a blocking call, it will return the last known value
-		newVal, err := configuration.GetFloat("speed")
-		if err != nil {
-			return fmt.Errorf("Failed to get updated tunable number: %v", err)
-		}
-
-		if curr != newVal {
-			log.Info().Msgf("Tunable number updated: %f -> %f", curr, newVal)
-			curr = newVal
-		}
-		tunableSpeed = curr
-	}
+type INA226 struct {
+	dev i2c.Dev
 }
 
-// This function gets called when roverd wants to terminate the service
-func onTerminate(sig os.Signal) error {
-	log.Info().Str("signal", sig.String()).Msg("Terminating service")
+func NewINA226(bus i2c.BusCloser) (*INA226, error) {
+	ina := &INA226{
+		dev: i2c.Dev{Bus: bus, Addr: ina226Address},
+	}
 
-	//
-	// ...
-	// Any clean up logic here
-	// ...
-	//
+	// Initialize device
+	if err := ina.initialize(); err != nil {
+		return nil, fmt.Errorf("failed to initialize INA226: %v", err)
+	}
+
+	return ina, nil
+}
+
+func (ina *INA226) initialize() error {
+	// Set configuration register
+	if err := ina.writeRegister(configReg, configValue); err != nil {
+		return err
+	}
+
+	// Set calibration register (2560 or 0xA00 for a 2mΩ shunt resistor)
+	// This value should be calculated based on your specific shunt resistor
+	if err := ina.writeRegister(calibrationReg, 2560); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-// This is just a wrapper to run the user program
-// it is not recommended to put any other logic here
+func (ina *INA226) writeRegister(reg uint8, value uint16) error {
+	// Convert value to big-endian bytes
+	data := []byte{reg, byte(value >> 8), byte(value & 0xFF)}
+	return ina.dev.Tx(data, nil)
+}
+
+func (ina *INA226) readRegister(reg uint8) (uint16, error) {
+	// Write register address
+	if err := ina.dev.Tx([]byte{reg}, nil); err != nil {
+		return 0, err
+	}
+
+	// Read register value (2 bytes)
+	data := make([]byte, 2)
+	if err := ina.dev.Tx(nil, data); err != nil {
+		return 0, err
+	}
+
+	// Convert from big-endian
+	return uint16(data[0])<<8 | uint16(data[1]), nil
+}
+
+func (ina *INA226) ReadBusVoltage() (float64, error) {
+	raw, err := ina.readRegister(busVoltReg)
+	if err != nil {
+		return 0, err
+	}
+	return float64(raw) * busVoltageConversion, nil
+}
+
+func (ina *INA226) ReadCurrent() (float64, error) {
+	raw, err := ina.readRegister(currentReg)
+	if err != nil {
+		return 0, err
+	}
+	// Check if value is negative (two's complement)
+	value := int16(raw)
+	return float64(value) * currentLSB, nil
+}
+
+func (ina *INA226) ReadPower() (float64, error) {
+	raw, err := ina.readRegister(powerReg)
+	if err != nil {
+		return 0, err
+	}
+	return float64(raw) * powerLSB, nil
+}
+
+type CurrentSensorOutput struct {
+	SupplyVoltage float64
+	CurrentAmps   float64
+	PowerWatts    float64
+}
+
+func (ina *INA226) ReadSensorData() (*CurrentSensorOutput, error) {
+	// Read bus voltage
+	voltage, err := ina.ReadBusVoltage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bus voltage: %v", err)
+	}
+
+	// Read current
+	current, err := ina.ReadCurrent()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read current: %v", err)
+	}
+
+	// Read power
+	power, err := ina.ReadPower()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read power: %v", err)
+	}
+
+	return &CurrentSensorOutput{
+		SupplyVoltage: voltage,
+		CurrentAmps:   current,
+		PowerWatts:    power,
+	}, nil
+}
+
+func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration) error {
+
+	// From the service.yaml, read the configuration value for the update-frequency
+	// of the service.
+	if configuration == nil {
+		return fmt.Errorf("configuration cannot be accessed")
+	}
+	updateFrequency, err := configuration.GetFloat("updates-per-second")
+	if err == nil {
+		return fmt.Errorf("unable to read configuration")
+	}
+
+
+	// Initialize periph.io
+	if _, err := host.Init(); err != nil {
+		log.Error().Msgf("failed to initialize periph: %v", err)
+	}
+
+	// Open I2C bus
+	bus, err := i2creg.Open("5")
+	if err != nil {
+		log.Error().Msgf("failed to open I2C bus: %v", err)
+	}
+	defer bus.Close()
+
+	// Create a new INA226 instance
+	ina226, err := NewINA226(bus)
+	if err != nil {
+		log.Error().Msgf("%v", err)
+	}
+
+	for {
+		time.Sleep((1.0 * time.Second) / time.Duration(updateFrequency))
+
+		// Refetch to make it possible to tune
+		updateFrequency, err = configuration.GetFloat("updates-per-second")
+		if err == nil {
+			return fmt.Errorf("unable to read configuration")
+		}
+		
+		// Read sensor data
+		data, err := ina226.ReadSensorData()
+		if err != nil {
+			log.Error().Msgf("Failed to read sensor data: %v", err)
+		}
+		// Currently just printing the results.
+		// TODO: output current sensor definition here
+		log.Info().Msgf("Bus Voltage: %.3f V\n", data.SupplyVoltage)
+		log.Info().Msgf("Current: %.3f A\n", data.CurrentAmps)
+		log.Info().Msgf("Power: %.3f W\n", data.PowerWatts)
+	}
+}
+
+// When the service is stopped externally, this function is called.
+// Currently, there are no clean up routines.
+func onTerminate(sig os.Signal) error {
+	log.Info().Str("signal", sig.String()).Msg("Terminating service")
+	return nil
+}
+
+// Entry point of the program
 func main() {
 	roverlib.Run(run, onTerminate)
 }

@@ -1,27 +1,20 @@
-name: SERVICE_NAME
-author: SERVICE_AUTHOR
-source: SERVICE_SOURCE
-version: SERVICE_VERSION
-description: A template service in Go
-
-# The alias "as: controller" allows this service to be recognized as "controller"
-# by other components (like the actuator), even if its actual name is different.
-# This allows us to change the name of the service without breaking the system.
-as: controller
+name: energy
+author: vu-ase
+source: https://github.com/VU-ASE/energy
+version: 0.0.1
+description: A service that publishes energy data of the Rover
 
 commands:
   build: make build
-  run: ./bin/SERVICE_NAME
+  run: ./bin/energy
 
 inputs:
-  - service: imaging
-    streams:
-      - path
+
 outputs:
-  - decision
+  - energy
 
 configuration:
-  - name: speed
+  - name: updates-per-second
     type: number
-    value: 0.2
+    value: 10
     tunable: true
