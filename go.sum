@@ -1,9 +1,13 @@
 github.com/VU-ASE/rovercom v1.5.1 h1:2lbaZ0ZS1AC8XamyBzCKAsvKX7JFiTibS/fdWdKRwtU=
 github.com/VU-ASE/rovercom v1.5.1/go.mod h1:1T9bXpOPMMkubm6YBa847vseBRALFzq8lkDx96w0Hr8=
+github.com/VU-ASE/rovercom v1.7.0 h1:Ip6HaQtsoNAVnAZKt345nN8VK7lIR3qOARc3K4FXQ/c=
+github.com/VU-ASE/rovercom v1.7.0/go.mod h1:1T9bXpOPMMkubm6YBa847vseBRALFzq8lkDx96w0Hr8=
 github.com/VU-ASE/roverlib-go v1.2.0 h1:52fEzJAExaWqOLy0meBmAExWBEOnrxAsIzQK0ErdM3k=
 github.com/VU-ASE/roverlib-go v1.2.0/go.mod h1:wCre2f0pgcCOjM+9HPNdWxqF/ZsS/EgEyy6bJWjXjW0=
 github.com/VU-ASE/roverlib-go v1.2.6 h1:2AxTKCJeOt1XT1O6q5nMQmSrbOfrlBhgS/mBf3rZ6JE=
 github.com/VU-ASE/roverlib-go v1.2.6/go.mod h1:wCre2f0pgcCOjM+9HPNdWxqF/ZsS/EgEyy6bJWjXjW0=
+github.com/VU-ASE/roverlib-go v1.2.7 h1:hUSlJsMmR61GID4Y49cXFR67gQEW0KcFCqG9dqoks3o=
+github.com/VU-ASE/roverlib-go v1.2.7/go.mod h1:1qLI93E/CI8tzh7HEPejqopRzFbe/D7Ag13kkFl0J40=
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=

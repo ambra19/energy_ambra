@@ -11,6 +11,8 @@ import (
 	"periph.io/x/host/v3"
 
 	"github.com/rs/zerolog/log"
+
+	pb_outputs "github.com/VU-ASE/rovercom/packages/go/outputs"
 )
 
 const (
@@ -147,17 +149,19 @@ func (ina *INA226) ReadSensorData() (*CurrentSensorOutput, error) {
 }
 
 func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration) error {
+	log.Info().Msg("Hello testing")
 
 	// From the service.yaml, read the configuration value for the update-frequency
 	// of the service.
 	if configuration == nil {
 		return fmt.Errorf("configuration cannot be accessed")
 	}
-	updateFrequency, err := configuration.GetFloat("updates-per-second")
-	if err == nil {
-		return fmt.Errorf("unable to read configuration")
-	}
 
+	// We publish measurements to the energy output stream
+	writeStream := service.GetWriteStream("energy")
+	if writeStream == nil {
+		return fmt.Errorf("failed to create write stream 'energy'")
+	}
 
 	// Initialize periph.io
 	if _, err := host.Init(); err != nil {
@@ -178,24 +182,39 @@ func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration)
 	}
 
 	for {
-		time.Sleep((1.0 * time.Second) / time.Duration(updateFrequency))
-
-		// Refetch to make it possible to tune
-		updateFrequency, err = configuration.GetFloat("updates-per-second")
-		if err == nil {
-			return fmt.Errorf("unable to read configuration")
+		// Fetch in the loop to make it possible to tune
+		updateFrequency, err := configuration.GetFloat("updates-per-second")
+		if err != nil {
+			return fmt.Errorf("unable to read configuration: %v", err)
 		}
-		
+		sleepSeconds := 1.0 / updateFrequency
+		time.Sleep(time.Duration(sleepSeconds * float64(time.Second)))
+
 		// Read sensor data
 		data, err := ina226.ReadSensorData()
 		if err != nil {
 			log.Error().Msgf("Failed to read sensor data: %v", err)
 		}
-		// Currently just printing the results.
-		// TODO: output current sensor definition here
-		log.Info().Msgf("Bus Voltage: %.3f V\n", data.SupplyVoltage)
-		log.Info().Msgf("Current: %.3f A\n", data.CurrentAmps)
-		log.Info().Msgf("Power: %.3f W\n", data.PowerWatts)
+
+		// We build the output message that that is serialized with protobuf
+		outputMsg := pb_outputs.SensorOutput{
+			Timestamp: uint64(time.Now().UnixMilli()),
+			Status:    0,
+			SensorId:  1,
+			SensorOutput: &pb_outputs.SensorOutput_EnergyOutput{
+				EnergyOutput: &pb_outputs.EnergySensorOutput{
+					CurrentAmps:   float32(data.CurrentAmps),
+					SupplyVoltage: float32(data.SupplyVoltage),
+					PowerWatts:    float32(data.PowerWatts),
+				},
+			},
+		}
+
+		// Publish the data
+		err = writeStream.Write(&outputMsg)
+		if err != nil {
+			log.Warn().Msgf("unable to publish data: %v", err)
+		}
 	}
 }
 
