@@ -1,6 +1,6 @@
 name: energy
 author: ambra
-source: https://github.com/VU-ASE/energy
+source: https://github.com/ambra19/energy_ambra
 version: 0.0.1
 description: A service that publishes energy data of the Rover
 
