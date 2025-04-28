@@ -1,5 +1,5 @@
 name: energy
-author: vu-ase
+author: ambra
 source: https://github.com/VU-ASE/energy
 version: 0.0.1
 description: A service that publishes energy data of the Rover
@@ -16,5 +16,5 @@ outputs:
 configuration:
   - name: updates-per-second
     type: number
-    value: 5
+    value: 1
     tunable: true

@@ -210,7 +210,7 @@ func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration)
 			},
 		}
 
-		log.Info().Msgf("Amps: %f Volts: %f Watts: %f", data.CurrentAmps, data.SupplyVoltage, data.PowerWatts)
+		// log.Info().Msgf("Amps: %f Volts: %f Watts: %f", data.CurrentAmps, data.SupplyVoltage, data.PowerWatts)
 
 		// Publish the data
 		err = writeStream.Write(&outputMsg)
