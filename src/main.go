@@ -198,26 +198,28 @@ func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration)
 		}
 
 		// We build the output message that that is serialized with protobuf
-		outputMsg := pb_outputs.SensorOutput{
-			Timestamp: uint64(time.Now().UnixMilli()),
-			Status:    0,
-			SensorId:  1,
-			SensorOutput: &pb_outputs.SensorOutput_EnergyOutput{
-				EnergyOutput: &pb_outputs.EnergySensorOutput{
-					CurrentAmps:   float32(data.CurrentAmps),
-					SupplyVoltage: float32(data.SupplyVoltage),
-					PowerWatts:    float32(data.PowerWatts),
-				},
-			},
-		}
+		// outputMsg := pb_outputs.SensorOutput{
+		// 	Timestamp: uint64(time.Now().UnixMilli()),
+		// 	Status:    0,
+		// 	SensorId:  1,
+		// 	SensorOutput: &pb_outputs.SensorOutput_EnergyOutput{
+		// 		EnergyOutput: &pb_outputs.EnergySensorOutput{
+		// 			CurrentAmps:   float32(data.CurrentAmps),
+		// 			SupplyVoltage: float32(data.SupplyVoltage),
+		// 			PowerWatts:    float32(data.PowerWatts),
+		// 		},
+		// 	},
+		// }
 
-		// log.Info().Msgf("Amps: %f Volts: %f Watts: %f", data.CurrentAmps, data.SupplyVoltage, data.PowerWatts)
+		timestamp := time.Now().Format("15:04:05") // millisecond resolution
+		log.Info().Msgf("[%s] Amps: %.3f Volts: %.3f Watts: %.3f",
+			timestamp,data.CurrentAmps,data.SupplyVoltage,data.PowerWatts)
 
 		// Publish the data
-		err = writeStream.Write(&outputMsg)
-		if err != nil {
-			log.Warn().Msgf("unable to publish data: %v", err)
-		}
+		// err = writeStream.Write(&outputMsg)
+		// if err != nil {
+		// 	log.Warn().Msgf("unable to publish data: %v", err)
+		// }
 	}
 }
 
