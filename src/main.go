@@ -183,12 +183,13 @@ func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration)
 
 	for {
 		// Fetch in the loop to make it possible to tune
-		updateFrequency, err := configuration.GetFloat("updates-per-second")
-		if err != nil {
-			return fmt.Errorf("unable to read configuration: %v", err)
-		}
-		sleepSeconds := 1.0 / updateFrequency
-		time.Sleep(time.Duration(sleepSeconds * float64(time.Second)))
+		// updateFrequency, err := configuration.GetFloat("updates-per-second")
+		// if err != nil {
+		// 	return fmt.Errorf("unable to read configuration: %v", err)
+		// }
+		// sleepSeconds := 1.0 / updateFrequency
+		// time.Sleep(time.Duration(sleepSeconds * float64(time.Second)))
+		time.Sleep(1 * time.Millisecond)
 
 		// Read sensor data
 		data, err := ina226.ReadSensorData()

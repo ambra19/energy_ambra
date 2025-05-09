@@ -16,5 +16,5 @@ outputs:
 configuration:
   - name: updates-per-second
     type: number
-    value: 1
+    value: 1000
     tunable: true
