@@ -12,7 +12,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	pb_outputs "github.com/VU-ASE/rovercom/packages/go/outputs"
+	// pb_outputs "github.com/VU-ASE/rovercom/packages/go/outputs"
 )
 
 const (
@@ -211,7 +211,7 @@ func run(service roverlib.Service, configuration *roverlib.ServiceConfiguration)
 		// 	},
 		// }
 
-		timestamp := time.Now().Format("15:04:05") // millisecond resolution
+		timestamp := time.Now().Format("15:04:05") 
 		log.Info().Msgf("[%s] Amps: %.3f Volts: %.3f Watts: %.3f",
 			timestamp,data.CurrentAmps,data.SupplyVoltage,data.PowerWatts)
 
